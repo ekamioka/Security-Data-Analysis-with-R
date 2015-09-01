@@ -1,0 +1,207 @@
+---
+title: "Security Data Analysis with R - Introduction to data frames in R."
+author: "Eduardo Kamioka"
+date: "August 31, 2015"
+output: html_document
+---
+#Goal
+This lab is an introduction to R and data frames. Hopefully you'll get comfortable enough with the basic building blocks for the rest of the labs.
+
+#Requirements
+* R
+* Data
+
+Full dataset available here: http://www.secrepo.com/Security-Data-Analysis/Lab_1/conn.log.zip - This is the conn.log referenced in this lab (Lab 1)
+
+#Lab 1 - Introduction
+
+This is a basic introduction to data frame functionality.
+
+R is a free software environment for statistical computing and graphics. It compiles and runs on a wide variety of UNIX platforms, Windows and MacOS. (CRAN website)
+
+Data frames are tightly coupled collections of variables which share many of the properties of matrices and of lists, used as the fundamental data structure by most of R's modeling software. (R help page)
+
+Often data is stored in files, and the first goal is to get that information off of disk and into a dataframe. If the data contains a lot (really A LOT) of observations and variables, you could be working with limited resources in your local machine, so you'll have to use samples of some of the files. Don't worry though, the same techniques apply if you're not sampling the files for exploration.
+
+```{r, echo=FALSE}
+setwd('~/workspace/Security-Data-Analysis-with-R/')
+```
+
+##File sampling
+
+First off, let's take a look at a log file generated from Bro (http://www.bro.og/) this log is similar to netflow logs as well. However, this log file is rather large and doesn't fit in memory.
+
+As part of the first exercise, figure out what setting the variable sample_percent should be in order to read in between 200k and 300k worth of (randomly selected) lines from the file. 
+
+```{r}
+
+logfile = 'data/conn.log' # defining the path to the data set
+logfile_length = length(readLines(logfile))  # getting how many rows (observations + header) contains in the file
+# logfile_length = as.numeric(unlist(strsplit(system(paste0('wc -l ', logfile), intern = T), split = " "))[1])
+### It would be A LOT FAST and memory sake if using the commented option
+### But the parsing would be a little scary for an introduction document and would be restricted to linux users.
+
+sample_percent = .01 # setting the size of the sample
+set.seed(2015) # setting the seed to reproducible sampling
+
+num_lines = sample_percent * logfile_length # setting the number of lines according to the percent of samples defined
+
+sample_index = sample(x = (1:logfile_length),size = num_lines, replace = FALSE) # generating the index to subset from the complete dataset
+
+sample_index = sort(sample_index, decreasing = FALSE)
+
+```
+
+##File Creation
+
+Now that you have a index to subset lines to work with, let's write them to another file so we'll have something to practice reading in.
+
+```{r}
+require(LaF) # library that helps like an angel - fast and painless (strange, need to explain something better)
+
+getlines = get_lines(logfile, sample_index) # getting only the lines defined in sample
+
+outfile = 'data/conn_sample.log' # defining the path to the sample dataset to be generated
+
+writeLines(getlines, con = outfile) # writing the sample dataframe to a CSV file
+
+```
+
+##File Input (CSV)
+
+This next step first reads our newly created file from above into memory. In this case we've also specified what we should call the columns in the dataframe.
+```{r}
+column_names = c('ts','uid','id.orig_h','id.orig_p','id.resp_h','id.resp_p','proto','service','duration',   # defining the columns names
+                 'orig_bytes','resp_bytes','conn_state','local_orig','missed_bytes','history','orig_pkts',
+                 'orig_ip_bytes','resp_pkts','resp_ip_bytes','tunnel_parents','threat','sample')
+
+conn_df = read.csv(outfile, sep="\t", header = FALSE, col.names = column_names) # read.table as used because Bro produces tab-delimited files by default
+
+```
+
+##Verifying Input
+
+Now (in theory) the contents of the file should be in a nicely laid-out dataframe.
+
+For this next step, experiment with calling the head() and tail() method to see the values at the beginning and end of the dataframe. You can also pass a number to head() and tail() to specify the number of lines you want to see.
+```{r}
+
+head(conn_df, 10)
+tail(conn_df, 5)
+
+```
+
+##Data Summarization
+
+Now it's time to learn about the summary() method that can be called on dataframes and vectors. This will give you a numeric summarization of all columns that contain numbers.
+```{r}
+
+summary(conn_df)
+
+```
+
+##Data Types
+
+Wait a second, isn't the ts column supposed to be a timestamp? Perhaps this column would be better suited as a time data type vs. a number.
+
+Use the str() method to see what type of information is stored in each column.
+```{r}
+
+str(conn_df)
+
+```
+
+##Converting Column Types
+
+Time to change the ts column to a datetime object! We will accomplish that by using a simple function provided as.POSIXlt.POSIXct(). The step below runs this function on the ts column (what should be a time stamp), and then re-assigns this column back to the dataframe in the same place.
+```{r}
+
+conn_df$ts = as.POSIXlt.POSIXct(conn_df$ts)
+
+```
+
+##Data Value Exploration
+
+Verify that the conversion was successful. What is the datatype of the column now?
+```{r}
+
+str(conn_df)
+
+```
+
+Scroll back up the page and note where you ran the str() function. You'll see under the threat and sample columns there is likely the value of "NA". This stands for Not a Number and is a special value assigned to empty column values os missing values. There are a few ways to explore what values a column has. Two of these are table() and unique().
+
+Let's try them below on different columns. What happens when you run them on a column with IPs (id.orig_h, id.resp_h)? What about sample or threat?
+```{r}
+head(table(conn_df$id.orig_h))
+```
+
+```{r}
+head(table(conn_df$id.resp_h))
+```
+
+```{r}
+head(table(conn_df$sample))
+```
+
+```{r}
+head(table(conn_df$threat))
+```
+
+```{r}
+head(unique(conn_df$id.orig_h))
+```
+
+```{r}
+head(unique(conn_df$threat))
+```
+
+##Remove Columns
+
+Another useful operation on a dataframe is removing and adding columns. Since the threat and sample columns contain only NAs, we can safely remove them and not impact any analysis that may be performed.
+
+Below the sample column is removed (dropped), then a line to drop the threat column and use a method from above to verify they are no longer in the dataframe.
+
+```{r}
+conn_df$sample = NULL
+conn_df$threat = NULL
+str(conn_df)
+```
+
+```{r}
+head(conn_df)
+```
+
+##Row Selection
+
+You can use column values to select rows from the dataframes (and even only view specific columns). First, select all rows that contain SSL traffic by running the cell below.
+```{r}
+head(conn_df[conn_df$service == 'ssl', ])
+```
+
+Next we can assign that result to a dataframe, and then look at all all the SSL connections that happen over ports other than 443.
+```{r}
+ssl_df = conn_df[conn_df$service == 'ssl', ]
+
+head(ssl_df[ssl_df$id.resp_p == 443, ])
+```
+
+You can see the individual column selections above eg: conn_df$service and ssl_df$id.resp_p respectively. You can use these to view output of specific columns.
+
+For example, the step below see all the individual values of originator bytes associated with a SSL connection over port 443.
+```{r}
+head(ssl_df[ssl_df$id.resp_p == 443, 'orig_bytes'])
+```
+
+##Final Exercises
+
+Using all of the techniques above to display the unique ports and originator IPs (bonus points for the number of connections of each) associated with all HTTP connections NOT over port 80.
+```{r}
+http_df = conn_df[conn_df$service == 'http', ]
+
+head(data.frame( table( http_df[http_df$id.resp_p != 80, 'id.orig_h'])))
+```
+
+```{r}
+head(data.frame( table( http_df[http_df$id.resp_p != 80, 'id.resp_p'])))
+```
