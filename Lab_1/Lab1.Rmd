@@ -24,7 +24,7 @@ Data frames are tightly coupled collections of variables which share many of the
 Often data is stored in files, and the first goal is to get that information off of disk and into a dataframe. If the data contains a lot (really A LOT) of observations and variables, you could be working with limited resources in your local machine, so you'll have to use samples of some of the files. Don't worry though, the same techniques apply if you're not sampling the files for exploration.
 
 ```{r, echo=FALSE}
-setwd('~/workspace/Security-Data-Analysis-with-R/')
+setwd('~/workspace/Security-Data-Analysis-with-R/Lab1')
 ```
 
 ##File sampling
